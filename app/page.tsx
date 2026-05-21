@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 
 type Severity = "Low" | "Medium" | "High";
 
@@ -13,6 +13,14 @@ type DiagnosticForm = {
   severity: Severity;
 };
 
+type AnalysisResult = {
+  anomaly: string;
+  causes: string;
+  checks: string[];
+  safety: string;
+  escalation: string;
+};
+
 const initialForm: DiagnosticForm = {
   department: "Machining",
   line: "Line 1 (CNC)",
@@ -20,6 +28,21 @@ const initialForm: DiagnosticForm = {
   alarmText: "",
   problemDescription: "",
   severity: "High",
+};
+
+const initialAnalysis: AnalysisResult = {
+  anomaly: "Detected hydraulic pressure fluctuation on Line 4 Main Pump.",
+  causes:
+    "Seal degradation, fluid level low, or sensor calibration drift. For Hydraulic Press, also confirm recent setup changes and operator reset sequence.",
+  checks: [
+    "Inspect pump seals for visible leaks.",
+    "Verify reservoir levels against specifications.",
+    "Check sensor voltage output.",
+  ],
+  safety:
+    "Ensure LOTO (Lockout/Tagout) procedures are strictly followed. High-pressure hazard present.",
+  escalation:
+    "If pressure remains below 40 PSI after checks, contact Maintenance Lead immediately.",
 };
 
 const navItems = ["Dashboard", "History", "Maintenance", "Support"];
@@ -57,11 +80,60 @@ const severityContent: Record<
 const fieldClass =
   "min-h-12 w-full rounded border border-[#c2c6d4] bg-[#e6e8ea] px-4 py-3 text-base text-[#191c1e] outline-none transition placeholder:text-[#667085] focus:border-2 focus:border-[#0056b3]";
 
+function generateMockAnalysis(form: DiagnosticForm): AnalysisResult {
+  const alarmText = form.alarmText.trim() || "No alarm code provided";
+  const problem = form.problemDescription.trim();
+  const machine = form.machineType;
+  const line = form.line;
+
+  const anomaly =
+    form.severity === "High"
+      ? `Detected high-priority instability on ${line}: ${problem}`
+      : form.severity === "Medium"
+        ? `Detected warning-level performance drift on ${line}: ${problem}`
+        : `Detected low-priority operating variance on ${line}: ${problem}`;
+
+  const machineCauses: Record<string, string> = {
+    "Hydraulic Press":
+      "pressure loss, seal wear, low hydraulic fluid, or pressure sensor calibration drift",
+    "Conveyor System":
+      "belt tracking drift, blocked photo eye, worn roller, or inconsistent motor feedback",
+    "Robotic Arm":
+      "axis limit fault, end-effector misalignment, low air pressure, or position sensor drift",
+  };
+
+  return {
+    anomaly,
+    causes: `Based on ${alarmText}, likely causes include ${
+      machineCauses[machine] ?? "sensor faults, setup drift, or mechanical wear"
+    }. Confirm whether this started after a changeover, reset, or recent maintenance activity.`,
+    checks: [
+      `Verify ${machine} is in a safe stop state before inspecting the affected area.`,
+      `Compare ${alarmText} with the HMI alarm details and the latest maintenance log.`,
+      "Check guards, product path, air pressure, sensor indicators, and obvious loose connections.",
+      "Run a controlled restart only after the area is clear and the standard startup sequence is complete.",
+    ],
+    safety:
+      form.severity === "High"
+        ? "Follow LOTO before reaching into guarded or energized equipment. Keep operators clear of the hazard zone until maintenance verifies the condition."
+        : "Follow site safety procedures before inspection. Do not bypass guards, interlocks, light curtains, or emergency stop circuits.",
+    escalation:
+      form.severity === "High"
+        ? "Escalate to the Maintenance Lead immediately if the alarm returns or the machine cannot hold normal operating conditions."
+        : form.severity === "Medium"
+          ? "Escalate to maintenance if the same alarm repeats after basic checks or production quality is affected."
+          : "Monitor the line after restart and document the issue if it repeats during the shift.",
+  };
+}
+
 export default function Home() {
   const [form, setForm] = useState<DiagnosticForm>(initialForm);
   const [submittedForm, setSubmittedForm] =
     useState<DiagnosticForm>(initialForm);
+  const [analysis, setAnalysis] = useState<AnalysisResult>(initialAnalysis);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [validationMessage, setValidationMessage] = useState("");
 
   function updateField<FieldName extends keyof DiagnosticForm>(
     field: FieldName,
@@ -70,10 +142,37 @@ export default function Home() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmittedForm(form);
+    const problemDescription = form.problemDescription.trim();
+
+    if (!problemDescription) {
+      setValidationMessage("Problem Description is required before analysis.");
+      return;
+    }
+
+    setValidationMessage("");
+    setIsAnalyzing(true);
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 800);
+    });
+
+    const nextForm = { ...form, problemDescription };
+    setForm(nextForm);
+    setSubmittedForm(nextForm);
+    setAnalysis(generateMockAnalysis(nextForm));
     setHasAnalyzed(true);
+    setIsAnalyzing(false);
+  }
+
+  function handleReset() {
+    setForm(initialForm);
+    setSubmittedForm(initialForm);
+    setAnalysis(initialAnalysis);
+    setHasAnalyzed(false);
+    setIsAnalyzing(false);
+    setValidationMessage("");
   }
 
   const result = severityContent[submittedForm.severity];
@@ -101,10 +200,10 @@ export default function Home() {
 
             <nav className="flex gap-2 overflow-x-auto p-3 lg:flex-col lg:gap-3 lg:px-2 lg:py-7">
               {navItems.map((item) => (
-                <a
-                  href="#"
+                <button
+                  type="button"
                   key={item}
-                  className={`flex min-h-12 items-center gap-4 rounded px-4 text-sm font-semibold tracking-[0.05em] transition ${
+                  className={`flex min-h-12 cursor-pointer items-center gap-4 rounded px-4 text-left text-sm font-semibold tracking-[0.05em] transition focus:outline-none focus:ring-2 focus:ring-[#0056b3] ${
                     item === "Dashboard"
                       ? "border-l-4 border-[#0056b3] bg-[#d8dadc] text-[#191c1e]"
                       : "text-[#191c1e] hover:bg-[#e0e3e5]"
@@ -114,13 +213,17 @@ export default function Home() {
                     {item.slice(0, 1)}
                   </span>
                   {item}
-                </a>
+                </button>
               ))}
             </nav>
           </div>
 
           <div className="p-3 lg:p-4">
-            <button className="flex min-h-12 w-full items-center justify-center gap-3 rounded bg-[#0056b3] px-4 text-base font-semibold text-white shadow-[0_4px_12px_rgba(0,86,179,0.18)]">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-3 rounded bg-[#0056b3] px-4 text-base font-semibold text-white shadow-[0_4px_12px_rgba(0,86,179,0.18)] transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
+            >
               <span className="text-2xl leading-none">+</span>
               New Log
             </button>
@@ -131,17 +234,17 @@ export default function Home() {
           <header className="flex min-h-[72px] flex-col gap-4 border-b border-[#c2c6d4] bg-[#f8f9fb] px-5 py-4 md:flex-row md:items-center md:justify-between lg:px-8">
             <nav className="flex gap-6 overflow-x-auto">
               {topNavItems.map((item) => (
-                <a
-                  href="#"
+                <button
+                  type="button"
                   key={item}
-                  className={`whitespace-nowrap pb-2 text-sm font-semibold tracking-[0.05em] ${
+                  className={`cursor-pointer whitespace-nowrap pb-2 text-left text-sm font-semibold tracking-[0.05em] transition focus:outline-none focus:ring-2 focus:ring-[#0056b3] ${
                     item === "Dashboard"
                       ? "border-b-2 border-[#003f87] text-[#003f87]"
                       : "text-[#191c1e] hover:text-[#003f87]"
                   }`}
                 >
                   {item}
-                </a>
+                </button>
               ))}
             </nav>
 
@@ -151,10 +254,16 @@ export default function Home() {
                 AI System Online
               </span>
               <span className="hidden h-8 w-px bg-[#c2c6d4] md:block" />
-              <button className="hidden h-10 w-10 place-items-center rounded-full border border-[#c2c6d4] bg-[#f2f4f6] text-lg font-bold text-[#424752] md:grid">
+              <button
+                type="button"
+                className="hidden h-10 w-10 cursor-pointer place-items-center rounded-full border border-[#c2c6d4] bg-[#f2f4f6] text-lg font-bold text-[#424752] transition hover:border-[#0056b3] hover:text-[#003f87] md:grid"
+              >
                 ?
               </button>
-              <button className="hidden h-10 w-10 place-items-center rounded-full border border-[#c2c6d4] bg-[#f2f4f6] text-lg font-bold text-[#424752] md:grid">
+              <button
+                type="button"
+                className="hidden h-10 w-10 cursor-pointer place-items-center rounded-full border border-[#c2c6d4] bg-[#f2f4f6] text-lg font-bold text-[#424752] transition hover:border-[#0056b3] hover:text-[#003f87] md:grid"
+              >
                 S
               </button>
             </div>
@@ -276,19 +385,35 @@ export default function Home() {
                         }
                         className={`${fieldClass} min-h-40 resize-y`}
                         placeholder="Describe the physical symptoms, sounds, or operational anomalies observed..."
-                        required
+                        aria-describedby="problem-validation"
                       />
+                      {validationMessage ? (
+                        <p
+                          id="problem-validation"
+                          className="text-sm font-semibold text-[#ba1a1a]"
+                        >
+                          {validationMessage}
+                        </p>
+                      ) : null}
                     </Field>
 
-                    <div className="flex border-t border-[#c2c6d4] pt-5 md:justify-end">
+                    <div className="flex flex-col gap-3 border-t border-[#c2c6d4] pt-5 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={handleReset}
+                        className="flex min-h-12 w-full cursor-pointer items-center justify-center rounded border border-[#0056b3] bg-white px-6 py-3 text-sm font-bold tracking-[0.05em] text-[#003f87] transition hover:bg-[#f2f4f6] focus:outline-none focus:ring-2 focus:ring-[#0056b3] sm:w-auto"
+                      >
+                        Clear / Reset
+                      </button>
                       <button
                         type="submit"
-                        className="flex min-h-12 w-full items-center justify-center gap-3 rounded bg-[#0056b3] px-8 py-3 text-sm font-bold tracking-[0.05em] text-white shadow-[0_8px_18px_rgba(0,86,179,0.18)] transition hover:bg-[#003f87] md:w-auto"
+                        disabled={isAnalyzing}
+                        className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-3 rounded bg-[#0056b3] px-8 py-3 text-sm font-bold tracking-[0.05em] text-white shadow-[0_8px_18px_rgba(0,86,179,0.18)] transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3] disabled:cursor-not-allowed disabled:bg-[#727784] sm:w-auto"
                       >
                         <span className="grid h-5 w-5 place-items-center rounded-sm border border-white/80 text-[10px]">
                           AI
                         </span>
-                        Analyze Issue
+                        {isAnalyzing ? "Analyzing..." : "Analyze Issue"}
                       </button>
                     </div>
                   </div>
@@ -318,29 +443,25 @@ export default function Home() {
                         Detected Anomaly
                       </h3>
                       <p className="text-base font-semibold leading-6 text-[#191c1e]">
-                        {hasAnalyzed
-                          ? result.anomaly
-                          : "Detected hydraulic pressure fluctuation on Line 4 Main Pump."}
+                        {isAnalyzing
+                          ? "Analyzing current operator input..."
+                          : hasAnalyzed
+                            ? analysis.anomaly
+                            : initialAnalysis.anomaly}
                       </p>
                     </section>
 
                     <AnalysisSection title="Likely Causes" tone="primary">
-                      <p>
-                        Seal degradation, fluid level low, or sensor calibration
-                        drift. For{" "}
-                        <strong>{submittedForm.machineType}</strong>, also
-                        confirm recent setup changes and operator reset
-                        sequence.
-                      </p>
+                      <p>{analysis.causes}</p>
                     </AnalysisSection>
 
                     <AnalysisSection title="Recommended Checks" tone="tertiary">
                       <ol className="space-y-3">
-                        <li>1. Inspect pump seals for visible leaks.</li>
-                        <li>
-                          2. Verify reservoir levels against specifications.
-                        </li>
-                        <li>3. Check sensor voltage output.</li>
+                        {analysis.checks.map((check, index) => (
+                          <li key={check}>
+                            {index + 1}. {check}
+                          </li>
+                        ))}
                       </ol>
                     </AnalysisSection>
 
@@ -349,9 +470,7 @@ export default function Home() {
                         Critical Safety Reminders
                       </h3>
                       <p className="text-base leading-7 text-[#93000a]">
-                        Ensure <strong>LOTO (Lockout/Tagout)</strong>{" "}
-                        procedures are strictly followed. High-pressure hazard
-                        present.
+                        {analysis.safety}
                       </p>
                     </section>
 
@@ -361,7 +480,7 @@ export default function Home() {
                       </h3>
                       <div className="rounded border border-[#c2c6d4] bg-[#f8f9fb] p-4">
                         <p className="text-sm leading-6 text-[#191c1e]">
-                          {result.escalation}
+                          {analysis.escalation}
                         </p>
                       </div>
                     </section>
@@ -381,7 +500,7 @@ function Field({
   htmlFor,
   label,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   htmlFor: string;
   label: string;
 }) {
@@ -403,7 +522,7 @@ function AnalysisSection({
   title,
   tone,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   title: string;
   tone: "primary" | "tertiary";
 }) {
