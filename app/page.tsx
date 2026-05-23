@@ -14,11 +14,13 @@ type DiagnosticForm = {
 };
 
 type AnalysisResult = {
-  anomaly: string;
-  causes: string;
-  checks: string[];
-  safety: string;
-  escalation: string;
+  priority: Severity;
+  detectedAnomaly: string;
+  plainEnglishSummary: string;
+  likelyCauses: string;
+  recommendedChecks: string[];
+  safetyReminders: string;
+  escalationProtocol: string;
 };
 
 const initialForm: DiagnosticForm = {
@@ -31,17 +33,20 @@ const initialForm: DiagnosticForm = {
 };
 
 const initialAnalysis: AnalysisResult = {
-  anomaly: "Detected hydraulic pressure fluctuation on Line 4 Main Pump.",
-  causes:
+  priority: "High",
+  detectedAnomaly: "Detected hydraulic pressure fluctuation on Line 4 Main Pump.",
+  plainEnglishSummary:
+    "AI-assisted troubleshooting is ready. Enter the observed problem and analyze to receive a non-guaranteed troubleshooting report.",
+  likelyCauses:
     "Seal degradation, fluid level low, or sensor calibration drift. For Hydraulic Press, also confirm recent setup changes and operator reset sequence.",
-  checks: [
+  recommendedChecks: [
     "Inspect pump seals for visible leaks.",
     "Verify reservoir levels against specifications.",
     "Check sensor voltage output.",
   ],
-  safety:
+  safetyReminders:
     "Ensure LOTO (Lockout/Tagout) procedures are strictly followed. High-pressure hazard present.",
-  escalation:
+  escalationProtocol:
     "If pressure remains below 40 PSI after checks, contact Maintenance Lead immediately.",
 };
 
@@ -80,60 +85,13 @@ const severityContent: Record<
 const fieldClass =
   "min-h-12 w-full rounded border border-[#c2c6d4] bg-[#e6e8ea] px-4 py-3 text-base text-[#191c1e] outline-none transition placeholder:text-[#667085] focus:border-2 focus:border-[#0056b3]";
 
-function generateMockAnalysis(form: DiagnosticForm): AnalysisResult {
-  const alarmText = form.alarmText.trim() || "No alarm code provided";
-  const problem = form.problemDescription.trim();
-  const machine = form.machineType;
-  const line = form.line;
-
-  const anomaly =
-    form.severity === "High"
-      ? `Detected high-priority instability on ${line}: ${problem}`
-      : form.severity === "Medium"
-        ? `Detected warning-level performance drift on ${line}: ${problem}`
-        : `Detected low-priority operating variance on ${line}: ${problem}`;
-
-  const machineCauses: Record<string, string> = {
-    "Hydraulic Press":
-      "pressure loss, seal wear, low hydraulic fluid, or pressure sensor calibration drift",
-    "Conveyor System":
-      "belt tracking drift, blocked photo eye, worn roller, or inconsistent motor feedback",
-    "Robotic Arm":
-      "axis limit fault, end-effector misalignment, low air pressure, or position sensor drift",
-  };
-
-  return {
-    anomaly,
-    causes: `Based on ${alarmText}, likely causes include ${
-      machineCauses[machine] ?? "sensor faults, setup drift, or mechanical wear"
-    }. Confirm whether this started after a changeover, reset, or recent maintenance activity.`,
-    checks: [
-      `Verify ${machine} is in a safe stop state before inspecting the affected area.`,
-      `Compare ${alarmText} with the HMI alarm details and the latest maintenance log.`,
-      "Check guards, product path, air pressure, sensor indicators, and obvious loose connections.",
-      "Run a controlled restart only after the area is clear and the standard startup sequence is complete.",
-    ],
-    safety:
-      form.severity === "High"
-        ? "Follow LOTO before reaching into guarded or energized equipment. Keep operators clear of the hazard zone until maintenance verifies the condition."
-        : "Follow site safety procedures before inspection. Do not bypass guards, interlocks, light curtains, or emergency stop circuits.",
-    escalation:
-      form.severity === "High"
-        ? "Escalate to the Maintenance Lead immediately if the alarm returns or the machine cannot hold normal operating conditions."
-        : form.severity === "Medium"
-          ? "Escalate to maintenance if the same alarm repeats after basic checks or production quality is affected."
-          : "Monitor the line after restart and document the issue if it repeats during the shift.",
-  };
-}
-
 export default function Home() {
   const [form, setForm] = useState<DiagnosticForm>(initialForm);
-  const [submittedForm, setSubmittedForm] =
-    useState<DiagnosticForm>(initialForm);
   const [analysis, setAnalysis] = useState<AnalysisResult>(initialAnalysis);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
 
   function updateField<FieldName extends keyof DiagnosticForm>(
     field: FieldName,
@@ -152,30 +110,56 @@ export default function Home() {
     }
 
     setValidationMessage("");
+    setAnalysisError("");
     setIsAnalyzing(true);
 
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 800);
-    });
-
     const nextForm = { ...form, problemDescription };
-    setForm(nextForm);
-    setSubmittedForm(nextForm);
-    setAnalysis(generateMockAnalysis(nextForm));
-    setHasAnalyzed(true);
-    setIsAnalyzing(false);
+
+    try {
+      const [response] = await Promise.all([
+        fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(nextForm),
+        }),
+        new Promise((resolve) => {
+          window.setTimeout(resolve, 800);
+        }),
+      ]);
+
+      const payload = (await response.json()) as {
+        analysis?: AnalysisResult;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.analysis) {
+        throw new Error(payload.error || "Unable to generate analysis.");
+      }
+
+      setForm(nextForm);
+      setAnalysis(payload.analysis);
+      setHasAnalyzed(true);
+    } catch (error) {
+      setAnalysisError(
+        error instanceof Error
+          ? error.message
+          : "Unable to generate AI-assisted troubleshooting right now.",
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   function handleReset() {
     setForm(initialForm);
-    setSubmittedForm(initialForm);
     setAnalysis(initialAnalysis);
     setHasAnalyzed(false);
     setIsAnalyzing(false);
     setValidationMessage("");
+    setAnalysisError("");
   }
 
-  const result = severityContent[submittedForm.severity];
+  const result = severityContent[analysis.priority];
 
   return (
     <main className="min-h-screen bg-[#f8f9fb] text-[#191c1e]">
@@ -446,18 +430,24 @@ export default function Home() {
                         {isAnalyzing
                           ? "Analyzing current operator input..."
                           : hasAnalyzed
-                            ? analysis.anomaly
-                            : initialAnalysis.anomaly}
+                            ? analysis.detectedAnomaly
+                            : initialAnalysis.detectedAnomaly}
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-[#424752]">
+                        {analysisError ||
+                          (hasAnalyzed
+                            ? analysis.plainEnglishSummary
+                            : initialAnalysis.plainEnglishSummary)}
                       </p>
                     </section>
 
                     <AnalysisSection title="Likely Causes" tone="primary">
-                      <p>{analysis.causes}</p>
+                      <p>{analysis.likelyCauses}</p>
                     </AnalysisSection>
 
                     <AnalysisSection title="Recommended Checks" tone="tertiary">
                       <ol className="space-y-3">
-                        {analysis.checks.map((check, index) => (
+                        {analysis.recommendedChecks.map((check, index) => (
                           <li key={check}>
                             {index + 1}. {check}
                           </li>
@@ -470,7 +460,7 @@ export default function Home() {
                         Critical Safety Reminders
                       </h3>
                       <p className="text-base leading-7 text-[#93000a]">
-                        {analysis.safety}
+                        {analysis.safetyReminders}
                       </p>
                     </section>
 
@@ -480,7 +470,7 @@ export default function Home() {
                       </h3>
                       <div className="rounded border border-[#c2c6d4] bg-[#f8f9fb] p-4">
                         <p className="text-sm leading-6 text-[#191c1e]">
-                          {analysis.escalation}
+                          {analysis.escalationProtocol}
                         </p>
                       </div>
                     </section>
