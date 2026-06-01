@@ -26,23 +26,11 @@ type AnalysisResult = {
 
 const initialForm: DiagnosticForm = {
   department: "Fabrication",
-  line: "Demo Line A",
+  line: "Line A",
   machineType: "Hydraulic Press",
   alarmText: "",
   problemDescription: "",
   operatingContext: "",
-  severity: "Medium",
-};
-
-const demoScenario: DiagnosticForm = {
-  department: "Packaging",
-  line: "Demo Line B",
-  machineType: "Conveyor System",
-  alarmText: "Demo alarm: motor overload after restart",
-  problemDescription:
-    "Conveyor starts, runs for about 20 seconds, then stops with a motor overload alarm. Operator noticed a squealing sound near the infeed before the stop.",
-  operatingContext:
-    "Issue repeated twice after clearing product from the belt. No visible smoke or damage. Area is being treated as a demo example.",
   severity: "Medium",
 };
 
@@ -144,13 +132,6 @@ export default function Home() {
     setAnalysisError("");
   }
 
-  function loadDemoScenario() {
-    setForm(demoScenario);
-    setAnalysis(null);
-    setValidationMessage("");
-    setAnalysisError("");
-  }
-
   const priority = analysis?.priority ?? form.severity;
   const result = severityContent[priority];
 
@@ -168,7 +149,7 @@ export default function Home() {
                   Ops Assist
                 </p>
                 <p className="text-sm font-medium text-[#4b5563]">
-                  Demo troubleshooting console
+                  Troubleshooting Console V0.1
                 </p>
               </div>
             </div>
@@ -199,17 +180,11 @@ export default function Home() {
                 Safety framing
               </p>
               <p className="mt-2 text-sm leading-6 text-[#374151]">
-                Demo data only. AI output supports observation, documentation,
-                and escalation. It does not replace official procedures.
+                Prototype environment. Do not enter confidential or
+                proprietary information. AI output supports observation,
+                documentation, and escalation.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="min-h-12 rounded-md bg-[#0056b3] px-4 text-base font-semibold text-white shadow-sm transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
-            >
-              New Demo Log
-            </button>
           </div>
         </aside>
 
@@ -230,7 +205,7 @@ export default function Home() {
                 Server-side AI route
               </span>
               <span className="inline-flex min-h-9 items-center rounded-full border border-[#c3cad6] bg-[#f8fafc] px-4 text-sm font-semibold text-[#374151]">
-                Demo data only
+                Prototype environment
               </span>
             </div>
           </header>
@@ -243,8 +218,8 @@ export default function Home() {
               >
                 <PanelHeader
                   eyebrow="Operator input"
-                  title="Describe the demo issue"
-                  helper="Use only fake or sanitized examples."
+                  title="Describe the issue"
+                  helper="Use only non-confidential information."
                 />
 
                 <div className="grid gap-5 p-5 lg:p-6">
@@ -274,9 +249,9 @@ export default function Home() {
                         }
                         className={fieldClass}
                       >
-                        <option>Demo Line A</option>
-                        <option>Demo Line B</option>
-                        <option>Demo Cell 3</option>
+                        <option>Line A</option>
+                        <option>Line B</option>
+                        <option>Cell 3</option>
                         <option>Training Station</option>
                       </select>
                     </Field>
@@ -321,7 +296,7 @@ export default function Home() {
                         updateField("alarmText", event.target.value)
                       }
                       className={fieldClass}
-                      placeholder="Example: demo alarm, sensor fault, overload warning"
+                      placeholder="Example: motor overload, sensor fault, pressure warning"
                     />
                   </Field>
 
@@ -354,34 +329,25 @@ export default function Home() {
                         updateField("operatingContext", event.target.value)
                       }
                       className={`${fieldClass} min-h-28 resize-y`}
-                      placeholder="Add demo context: when it happens, recent resets, product flow, visible conditions, or what has already been checked safely."
+                      placeholder="Add context: when it happens, recent resets, product flow, visible conditions, or what has already been checked safely."
                     />
                   </Field>
 
-                  <div className="flex flex-col gap-3 border-t border-[#e2e7ef] pt-5 sm:flex-row sm:justify-between">
+                  <div className="flex flex-col gap-3 border-t border-[#e2e7ef] pt-5 sm:flex-row sm:justify-end">
                     <button
                       type="button"
-                      onClick={loadDemoScenario}
-                      className="min-h-12 rounded-md border border-[#0056b3] bg-white px-5 text-sm font-bold text-[#003f87] transition hover:bg-[#eef6ff] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
+                      onClick={handleReset}
+                      className="min-h-12 rounded-md border border-[#c3cad6] bg-white px-5 text-sm font-bold text-[#374151] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
                     >
-                      Load Demo Scenario
+                      Clear
                     </button>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <button
-                        type="button"
-                        onClick={handleReset}
-                        className="min-h-12 rounded-md border border-[#c3cad6] bg-white px-5 text-sm font-bold text-[#374151] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
-                      >
-                        Clear
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isAnalyzing}
-                        className="min-h-12 rounded-md bg-[#0056b3] px-7 text-sm font-bold text-white shadow-sm transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3] disabled:cursor-not-allowed disabled:bg-[#697386]"
-                      >
-                        {isAnalyzing ? "Analyzing issue..." : "Analyze Issue"}
-                      </button>
-                    </div>
+                    <button
+                      type="submit"
+                      disabled={isAnalyzing}
+                      className="min-h-12 rounded-md bg-[#0056b3] px-7 text-sm font-bold text-white shadow-sm transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3] disabled:cursor-not-allowed disabled:bg-[#697386]"
+                    >
+                      {isAnalyzing ? "Analyzing issue..." : "Analyze Issue"}
+                    </button>
                   </div>
                 </div>
               </form>
