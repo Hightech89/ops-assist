@@ -88,31 +88,44 @@ export default function Home() {
     setAnalysisError("");
     setIsAnalyzing(true);
 
-    const nextForm = { ...form, problemDescription, operatingContext };
+    const nextForm: DiagnosticForm = {
+      ...form,
+      problemDescription,
+      operatingContext,
+    };
+    const requestPayload: DiagnosticForm = {
+      department: nextForm.department,
+      line: nextForm.line,
+      machineType: nextForm.machineType,
+      alarmText: nextForm.alarmText,
+      problemDescription: nextForm.problemDescription,
+      operatingContext: nextForm.operatingContext,
+      severity: nextForm.severity,
+    };
 
     try {
       const [response] = await Promise.all([
         fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(nextForm),
+          body: JSON.stringify(requestPayload),
         }),
         new Promise((resolve) => {
           window.setTimeout(resolve, 650);
         }),
       ]);
 
-      const payload = (await response.json()) as {
+      const responsePayload = (await response.json()) as {
         analysis?: AnalysisResult;
         error?: string;
       };
 
-      if (!response.ok || !payload.analysis) {
-        throw new Error(payload.error || "Unable to generate analysis.");
+      if (!response.ok || !responsePayload.analysis) {
+        throw new Error(responsePayload.error || "Unable to generate analysis.");
       }
 
       setForm(nextForm);
-      setAnalysis(payload.analysis);
+      setAnalysis(responsePayload.analysis);
     } catch (error) {
       setAnalysisError(
         error instanceof Error
@@ -296,6 +309,7 @@ export default function Home() {
                         updateField("alarmText", event.target.value)
                       }
                       className={fieldClass}
+                      maxLength={160}
                       placeholder="Example: motor overload, sensor fault, pressure warning"
                     />
                   </Field>
@@ -308,6 +322,7 @@ export default function Home() {
                         updateField("problemDescription", event.target.value)
                       }
                       className={`${fieldClass} min-h-36 resize-y`}
+                      maxLength={600}
                       placeholder="Describe observable symptoms: noise, alarms, movement, repeated stops, leaks, jams, quality defects..."
                       aria-describedby="problem-validation"
                     />
@@ -329,6 +344,7 @@ export default function Home() {
                         updateField("operatingContext", event.target.value)
                       }
                       className={`${fieldClass} min-h-28 resize-y`}
+                      maxLength={600}
                       placeholder="Add context: when it happens, recent resets, product flow, visible conditions, or what has already been checked safely."
                     />
                   </Field>
