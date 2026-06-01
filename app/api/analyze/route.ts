@@ -55,6 +55,13 @@ type ConciseGemmaResult = {
   safetyReminders?: unknown;
 };
 
+type MarkdownSectionKey =
+  | "summary"
+  | "possibleCauses"
+  | "operatorSafeChecks"
+  | "escalationGuidance"
+  | "safetyNotes";
+
 type GeminiGenerateContentResponse = {
   candidates?: Array<{
     content?: {
@@ -209,6 +216,10 @@ async function generateGemmaAnalysis(
       logInfo("parse_result", { success: false, reason: "empty_response" });
       return "";
     }
+
+    logInfo("sanitized_model_preview", {
+      preview: sanitizeModelPreview(text).slice(0, 500),
+    });
 
     return text;
   } finally {
@@ -380,20 +391,12 @@ function parseGemmaJson(text: string): ConciseGemmaResult | null {
 }
 
 function parseMarkdownGemmaText(text: string): ConciseGemmaResult | null {
-  const summary = extractMarkdownSummary(text);
-  const possibleCauses = extractMarkdownList(text, "Possible Causes", [
-    "Operator Safe Checks",
-    "Operator-Safe Checks",
-    "Escalation Guidance",
-  ]);
-  const operatorSafeChecks = extractMarkdownList(text, "Operator Safe Checks", [
-    "Escalation Guidance",
-    "Safety Notes",
-  ]);
-  const escalationGuidance = extractMarkdownList(text, "Escalation Guidance", [
-    "Safety Notes",
-  ]);
-  const safetyNotes = extractMarkdownList(text, "Safety Notes", []);
+  const sections = extractMarkdownSections(text);
+  const summary = firstSectionItem(sections.summary);
+  const possibleCauses = sections.possibleCauses.slice(0, 3);
+  const operatorSafeChecks = sections.operatorSafeChecks.slice(0, 3);
+  const escalationGuidance = sections.escalationGuidance.slice(0, 2);
+  const safetyNotes = sections.safetyNotes.slice(0, 2);
 
   if (
     !summary &&
@@ -414,66 +417,178 @@ function parseMarkdownGemmaText(text: string): ConciseGemmaResult | null {
   };
 }
 
-function extractMarkdownSummary(text: string) {
-  const match = text.match(/\*{0,2}Summary:\*{0,2}\s*([^\n]+)/i);
-  return cleanMarkdownText(match?.[1] || "");
-}
+function extractMarkdownSections(text: string) {
+  const sections: Record<MarkdownSectionKey, string[]> = {
+    summary: [],
+    possibleCauses: [],
+    operatorSafeChecks: [],
+    escalationGuidance: [],
+    safetyNotes: [],
+  };
+  let currentSection: MarkdownSectionKey | null = null;
 
-function extractMarkdownList(
-  text: string,
-  heading: string,
-  nextHeadings: string[],
-) {
-  const section = extractMarkdownSection(text, heading, nextHeadings);
+  for (const rawLine of text.split(/\r?\n/)) {
+    const parsedHeading = parseMarkdownHeading(rawLine);
 
-  return section
-    .split(/\r?\n/)
-    .map((line) =>
-      cleanMarkdownText(
-        line.replace(/^\s*(?:[*-]|\d+[.)])\s*/, "").replace(/^["']|["']$/g, ""),
-      ),
-    )
-    .filter(isNonEmptyString)
-    .filter((line) => !line.toLowerCase().startsWith(heading.toLowerCase()))
-    .slice(0, heading === "Possible Causes" || heading === "Operator Safe Checks" ? 3 : 2);
-}
+    if (parsedHeading) {
+      currentSection = parsedHeading.section;
+      addMarkdownContent(sections, currentSection, parsedHeading.remainder);
+      continue;
+    }
 
-function extractMarkdownSection(
-  text: string,
-  heading: string,
-  nextHeadings: string[],
-) {
-  const escapedHeading = escapeRegex(heading).replace(/\\ /g, "[\\s-]+");
-  const startPattern = new RegExp(`\\*{0,2}${escapedHeading}:\\*{0,2}`, "i");
-  const start = text.search(startPattern);
+    if (!currentSection) {
+      continue;
+    }
 
-  if (start < 0) {
-    return "";
+    addMarkdownContent(sections, currentSection, rawLine);
   }
 
-  const afterStart = text.slice(start).replace(startPattern, "");
-  const nextIndexes = nextHeadings
-    .map((nextHeading) => {
-      const escapedNext = escapeRegex(nextHeading).replace(/\\ /g, "[\\s-]+");
-      const nextPattern = new RegExp(`\\*{0,2}${escapedNext}:\\*{0,2}`, "i");
-      return afterStart.search(nextPattern);
-    })
-    .filter((index) => index > 0);
-
-  const end = nextIndexes.length > 0 ? Math.min(...nextIndexes) : afterStart.length;
-  return afterStart.slice(0, end);
+  return sections;
 }
 
-function cleanMarkdownText(value: string) {
-  return value
-    .replace(/`/g, "")
-    .replace(/\*/g, "")
+function parseMarkdownHeading(line: string) {
+  const normalizedLine = normalizeMarkdownLine(line);
+
+  if (!normalizedLine) {
+    return null;
+  }
+
+  const colonIndex = normalizedLine.indexOf(":");
+  const candidates =
+    colonIndex >= 0
+      ? [
+          {
+            heading: normalizedLine.slice(0, colonIndex),
+            remainder: normalizedLine.slice(colonIndex + 1),
+          },
+        ]
+      : [{ heading: normalizedLine, remainder: "" }];
+
+  for (const candidate of candidates) {
+    const section = sectionForHeading(candidate.heading);
+
+    if (section) {
+      return {
+        section,
+        remainder: candidate.remainder,
+      };
+    }
+  }
+
+  return null;
+}
+
+function sectionForHeading(value: string): MarkdownSectionKey | null {
+  const heading = normalizeHeading(value);
+
+  if (heading === "summary") {
+    return "summary";
+  }
+
+  if (heading === "possible causes" || heading === "possible cause") {
+    return "possibleCauses";
+  }
+
+  if (
+    heading === "operator safe checks" ||
+    heading === "operator safe check" ||
+    heading === "safe checks" ||
+    heading === "recommended checks"
+  ) {
+    return "operatorSafeChecks";
+  }
+
+  if (
+    heading === "escalation guidance" ||
+    heading === "maintenance escalation" ||
+    heading === "maintenance escalation guidance" ||
+    heading === "when to escalate" ||
+    heading === "escalation"
+  ) {
+    return "escalationGuidance";
+  }
+
+  if (
+    heading === "safety notes" ||
+    heading === "safety note" ||
+    heading === "safety reminders" ||
+    heading === "safety reminder"
+  ) {
+    return "safetyNotes";
+  }
+
+  return null;
+}
+
+function addMarkdownContent(
+  sections: Record<MarkdownSectionKey, string[]>,
+  section: MarkdownSectionKey,
+  rawValue: string,
+) {
+  const value = cleanMarkdownText(rawValue);
+
+  if (!value || sectionForHeading(value) || isPlaceholderContent(value)) {
+    return;
+  }
+
+  sections[section].push(
+    ...splitMarkdownContent(value).filter((item) => !isPlaceholderContent(item)),
+  );
+}
+
+function splitMarkdownContent(value: string) {
+  const splitItems = value
+    .split(/\s+(?=\d+[.)]\s+)/)
+    .map((item) => cleanMarkdownText(item.replace(/^\d+[.)]\s*/, "")))
+    .filter(isNonEmptyString);
+
+  return splitItems.length > 1 ? splitItems : [value];
+}
+
+function firstSectionItem(items: string[]) {
+  return items.find((item) => isNonEmptyString(item) && !isPlaceholderContent(item)) || "";
+}
+
+function normalizeMarkdownLine(line: string) {
+  return line
+    .replace(/^\s*(?:#{1,6}\s*)/, "")
+    .replace(/^\s*(?:[*+-]|\d+[.)])\s+/, "")
+    .replace(/[`*_]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function normalizeHeading(value: string) {
+  return value
+    .replace(/[`*_]/g, "")
+    .replace(/[/:()[\]{}]+/g, " ")
+    .replace(/[-–—]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function cleanMarkdownText(value: string) {
+  return normalizeMarkdownLine(value)
+    .replace(/^["']|["']$/g, "")
+    .replace(/^["']|["'],?$/g, "")
+    .trim();
+}
+
+function isPlaceholderContent(value: string) {
+  const normalized = value
+    .replace(/["'[\],]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  return (
+    normalized === "one sentence" ||
+    normalized === "max 2" ||
+    normalized === "max 3" ||
+    normalized === "json shape" ||
+    normalized.startsWith("json shape ")
+  );
 }
 
 function extractJsonObjectCandidates(text: string) {
@@ -544,3 +659,24 @@ function logError(event: string, error: unknown) {
 function sanitizeLogMessage(message: string) {
   return message.replace(/[?&]key=[^&\s]+/gi, "?key=[redacted]").slice(0, 240);
 }
+
+function sanitizeModelPreview(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) =>
+      line.replace(
+        /^(\s*(?:[*+-]|\d+[.)])?\s*(?:Area|Line|Machine|Alarm|Issue|Context):\s*).+$/i,
+        "$1[redacted]",
+      ),
+    )
+    .join("\n")
+    .replace(/[?&]key=[^&\s]+/gi, "?key=[redacted]");
+}
+
+/*
+Manual parser sample for this project:
+- Paste a Gemma markdown response with headings such as ## Possible Causes,
+  **Operator-Safe Checks**, Safety notes:, or When to Escalate.
+- parseMarkdownGemmaText should return summary, possibleCauses,
+  operatorSafeChecks, escalationGuidance, and safetyNotes before fallback is used.
+*/
