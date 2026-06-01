@@ -10,6 +10,7 @@ type AnalyzeRequest = {
   machineType?: unknown;
   alarmText?: unknown;
   problemDescription?: unknown;
+  operatingContext?: unknown;
   severity?: unknown;
 };
 
@@ -66,6 +67,8 @@ export async function POST(request: Request) {
     machineType: getString(body.machineType) || "Unspecified machine",
     alarmText: getString(body.alarmText) || "No alarm/error text provided",
     problemDescription,
+    operatingContext:
+      getString(body.operatingContext) || "No additional symptoms or context provided",
     severity: normalizePriority(getString(body.severity)),
   };
 
@@ -75,13 +78,11 @@ export async function POST(request: Request) {
     const analysis = parseAnalysis(text);
 
     return Response.json({ analysis });
-  } catch (error) {
-    console.error("Gemma analysis failed", error);
-
+  } catch {
     return Response.json(
       {
         error:
-          "AI-assisted troubleshooting is unavailable right now. Follow site procedures and escalate to maintenance for high-risk issues.",
+          "AI-assisted guidance is unavailable right now. Follow site procedures and escalate high-risk or unclear issues through the normal maintenance channel.",
       },
       { status: 502 },
     );
@@ -94,21 +95,25 @@ function buildPrompt(form: {
   machineType: string;
   alarmText: string;
   problemDescription: string;
+  operatingContext: string;
   severity: Priority;
 }) {
   return `
-You are Ops Assist, an AI-assisted troubleshooting helper for factory operators and maintenance teams.
+You are Ops Assist, an AI-assisted troubleshooting helper for a manufacturing demo prototype.
 
 Return a single JSON object only. The first character must be { and the last character must be }.
 Do not include Markdown, commentary, code fences, bullets, planning, self-correction, or text outside the JSON object.
 
 Safety and reliability rules:
+- Treat every input as fake/demo data only.
 - Clearly state that this is AI-assisted troubleshooting.
 - Do not present the output as a guaranteed diagnosis.
 - Always remind users to follow site procedures and local safety rules.
 - Include lockout/tagout guidance when there are moving parts, electrical, pneumatic, hydraulic, heat, or pressure hazards.
 - Recommend maintenance escalation for high-risk issues.
 - Keep recommendations practical for a factory-floor operator.
+- Recommendations must be operator-safe checks only: observation, documentation, verifying displayed alarms, checking visible conditions from a safe state, and escalation.
+- Do not tell operators to perform maintenance-level repairs, bypass guards, adjust controls, reset safety systems, open panels, defeat interlocks, or troubleshoot energized equipment.
 
 Operator input:
 - Department: ${form.department}
@@ -117,16 +122,17 @@ Operator input:
 - Severity: ${form.severity}
 - Alarm/Error Text: ${form.alarmText}
 - Problem Description: ${form.problemDescription}
+- Symptoms/Context: ${form.operatingContext}
 
 JSON shape:
 {
   "priority": "Low" | "Medium" | "High",
   "detectedAnomaly": "short plain-English anomaly",
   "plainEnglishSummary": "short summary that says this is AI-assisted troubleshooting and not a guaranteed diagnosis",
-  "likelyCauses": "concise realistic likely causes",
-  "recommendedChecks": ["check 1", "check 2", "check 3"],
-  "safetyReminders": "site procedures, PPE, and lockout/tagout guidance when hazards apply",
-  "escalationProtocol": "when to escalate to maintenance, especially for high-risk issues"
+  "likelyCauses": "concise realistic possible causes, not a confirmed diagnosis",
+  "recommendedChecks": ["operator-safe check 1", "operator-safe check 2", "operator-safe check 3"],
+  "safetyReminders": "safety notes covering site procedures, PPE, and lockout/tagout guidance when hazards apply",
+  "escalationProtocol": "escalation guidance for maintenance or leadership, especially for high-risk issues"
 }
 `;
 }

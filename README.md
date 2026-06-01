@@ -6,17 +6,11 @@ Ops Assist is an AI-powered manufacturing troubleshooting assistant built for th
 
 Ops Assist helps factory operators and frontline technicians diagnose machine problems quickly by turning raw issue descriptions into structured troubleshooting guidance.
 
-## Hero
+## Demo focus
 
-From symptom to action plan in one workflow: Ops Assist uses Gemma 4 reasoning to analyze a production issue, identify likely causes, and return practical, safety-aware next steps in a structured format.
+From symptom to action plan in one workflow: Ops Assist uses Gemma 4 reasoning to analyze a demo production issue, identify possible causes, and return practical, safety-aware next steps in a structured format.
 
-## Screenshots
-
-> Add screenshots before submission.
-
-- `docs/screenshots/01-home.png` (placeholder)
-- `docs/screenshots/02-analysis-result.png` (placeholder)
-- `docs/screenshots/03-mobile-view.png` (placeholder)
+The prototype is intended for fake or sanitized demo data only. It does not replace site SOPs, lockout/tagout requirements, work orders, internal knowledge systems, OEM documentation, or qualified maintenance judgment.
 
 ## Why this project was built
 
@@ -30,11 +24,11 @@ This project was built to:
 
 ## Features
 
-- AI-assisted machine issue analysis
+- AI-assisted demo machine issue analysis
 - Reasoning-driven troubleshooting workflow
 - Structured JSON outputs for predictable UI rendering
-- Actionable recommendations with escalation context
-- Safety-conscious guidance framing
+- Operator-safe checks with escalation context
+- Safety notes and clear demo-only framing
 
 ## Technical stack
 
@@ -63,11 +57,11 @@ This model was selected for:
 
 High-level request flow:
 
-1. User enters machine issue details in the frontend.
+1. User enters demo machine issue details in the frontend.
 2. Next.js API route receives the request.
 3. The backend prompt layer requests structured troubleshooting output from Gemma 4.
 4. JSON response is returned to the UI.
-5. UI presents likely causes, next actions, and escalation/safety notes.
+5. UI presents possible causes, operator-safe checks, escalation guidance, and safety notes.
 
 ## Local setup
 
@@ -106,13 +100,13 @@ Open `http://localhost:3000`.
 
 ## Environment variables
 
-- `GEMINI_API_KEY` — API key used to call the model endpoint.
-- `GEMMA_MODEL` — model id used for troubleshooting generation (default: `gemma-4-26b-a4b-it`).
+- `GEMINI_API_KEY` - API key used by the server-side route to call the model endpoint.
+- `GEMMA_MODEL` - model id used for troubleshooting generation (default: `gemma-4-26b-a4b-it`).
 
 ## Safety disclaimer
 
-Ops Assist provides AI-generated guidance for operational support and learning purposes.
-It is **not** a replacement for plant SOPs, lockout/tagout requirements, OEM documentation, or certified engineering judgment.
+Ops Assist provides AI-generated guidance for demo, operational support, and learning purposes.
+It is **not** a replacement for plant SOPs, lockout/tagout requirements, OEM documentation, work orders, internal support systems, or certified engineering judgment.
 Always follow site safety policies and escalate uncertain conditions.
 
 ## Future improvements
