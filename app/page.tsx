@@ -208,7 +208,7 @@ export default function Home() {
                 Tablet-first prototype
               </p>
               <h1 className="mt-1 text-2xl font-bold leading-8 text-[#15181d] md:text-[32px] md:leading-10">
-                Manufacturing Troubleshooting Assist
+                Manufacturing Troubleshooting Assistant
               </h1>
             </div>
 
