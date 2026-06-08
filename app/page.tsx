@@ -2,6 +2,15 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 
+import {
+  buildShiftSummary,
+  shiftDepartments,
+  shiftLines,
+  shiftMachines,
+  type ShiftPassDownSummary,
+  type ShiftSummarySelection,
+} from "../lib/shift-summary";
+
 type Severity = "Low" | "Medium" | "High";
 
 type DiagnosticForm = {
@@ -22,17 +31,6 @@ type AnalysisResult = {
   recommendedChecks: string[];
   safetyReminders: string;
   escalationProtocol: string;
-};
-
-const sampleShiftSummary = {
-  totalStops: "12",
-  mostCommonStopReason: "Infeed backup",
-  longestDowntimeEvent: "18 minutes",
-  repeatedPattern: "Stops increased after short restarts",
-  operatorAwarenessNote:
-    "Watch for product buildup near the infeed before restarting the machine.",
-  suggestedFollowUp:
-    "Ask maintenance to review infeed timing and check for worn guide components.",
 };
 
 const initialForm: DiagnosticForm = {
@@ -68,6 +66,14 @@ const severityContent: Record<
 
 const fieldClass =
   "min-h-12 w-full rounded-md border border-[#b8bfcc] bg-white px-4 py-3 text-base text-[#15181d] outline-none transition placeholder:text-[#6b7280] focus:border-[#0056b3] focus:ring-2 focus:ring-[#0056b3]/20";
+
+const initialShiftSelection: ShiftSummarySelection = {
+  department: "Packaging",
+  line: "Line A",
+  machine: "Flow Wrapper",
+  startDateTime: "2026-06-07T06:00",
+  endDateTime: "2026-06-07T14:00",
+};
 
 const navItems = [
   "Dashboard",
@@ -166,19 +172,6 @@ export default function Home() {
     setAnalysisError("");
   }
 
-  function useShiftSummaryAsContext() {
-    const summaryContext = [
-      "Previous shift sample summary: Flow Wrapper had 12 total stops.",
-      "Most common stop reason was infeed backup.",
-      "Longest downtime event was 18 minutes.",
-      "Repeated pattern: stops increased after short restarts.",
-      "Operator awareness: watch for product buildup near the infeed before restarting.",
-    ].join(" ");
-
-    updateField("operatingContext", summaryContext);
-    setActiveSection("Dashboard");
-  }
-
   const priority = analysis?.priority ?? form.severity;
   const result = severityContent[priority];
 
@@ -264,7 +257,7 @@ export default function Home() {
 
           <div className="min-w-0 flex-1 px-4 py-5 sm:px-5 lg:px-8 lg:py-8">
             {activeSection === "Shift Summary" ? (
-              <ShiftSummaryView onUseAsContext={useShiftSummaryAsContext} />
+              <ShiftSummaryView />
             ) : (
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
                 <form
@@ -590,66 +583,218 @@ function ReadyState({
   );
 }
 
-function ShiftSummaryView({
-  onUseAsContext,
-}: {
-  onUseAsContext: () => void;
-}) {
+function ShiftSummaryView() {
+  const [selection, setSelection] = useState<ShiftSummarySelection>(
+    initialShiftSelection,
+  );
+  const [summary, setSummary] = useState<ShiftPassDownSummary | null>(null);
+
+  function updateSelection<FieldName extends keyof ShiftSummarySelection>(
+    field: FieldName,
+    value: ShiftSummarySelection[FieldName],
+  ) {
+    setSelection((current) => ({ ...current, [field]: value }));
+    setSummary(null);
+  }
+
+  function handleGenerateSummary(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSummary(buildShiftSummary(selection));
+  }
+
   return (
     <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-lg border border-[#d7dce5] bg-white shadow-sm">
-      <div className="flex flex-col gap-4 border-b border-[#d7dce5] bg-[#f8fafc] px-5 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-6">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6b7280]">
-            Future integration concept
-          </p>
-          <h2 className="mt-1 text-2xl font-bold leading-8 text-[#15181d]">
-            Shift Summary
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-[#4b5563]">
-            Review recent downtime patterns, repeated faults, and machine stops
-            from the previous shift.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onUseAsContext}
-          className="min-h-11 rounded-md bg-[#0056b3] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
-        >
-          Use this as context
-        </button>
-      </div>
+      <PanelHeader
+        eyebrow="Future integration concept"
+        title="Shift Summary"
+        helper="Review recent downtime patterns, repeated faults, and machine stops from the previous shift."
+      />
 
       <div className="grid gap-5 p-5 lg:p-6">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryMetric label="Machine" value="Flow Wrapper" />
-          <SummaryMetric
-            label="Total stops"
-            value={sampleShiftSummary.totalStops}
-          />
-          <SummaryMetric
-            label="Most common stop reason"
-            value={sampleShiftSummary.mostCommonStopReason}
-          />
-          <SummaryMetric
-            label="Longest downtime event"
-            value={sampleShiftSummary.longestDowntimeEvent}
-          />
-        </div>
+        <form
+          onSubmit={handleGenerateSummary}
+          className="grid gap-5 rounded-md border border-[#d7dce5] bg-[#f8fafc] p-4"
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Field label="Department / Area" htmlFor="shiftDepartment">
+              <select
+                id="shiftDepartment"
+                value={selection.department}
+                onChange={(event) =>
+                  updateSelection("department", event.target.value)
+                }
+                className={fieldClass}
+              >
+                {shiftDepartments.map((department) => (
+                  <option key={department}>{department}</option>
+                ))}
+              </select>
+            </Field>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <SummaryDetail
-            label="Repeated pattern"
-            value={sampleShiftSummary.repeatedPattern}
+            <Field label="Line / Cell" htmlFor="shiftLine">
+              <select
+                id="shiftLine"
+                value={selection.line}
+                onChange={(event) => updateSelection("line", event.target.value)}
+                className={fieldClass}
+              >
+                {shiftLines.map((line) => (
+                  <option key={line}>{line}</option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Machine" htmlFor="shiftMachine">
+              <select
+                id="shiftMachine"
+                value={selection.machine}
+                onChange={(event) =>
+                  updateSelection("machine", event.target.value)
+                }
+                className={fieldClass}
+              >
+                {shiftMachines.map((machine) => (
+                  <option key={machine}>{machine}</option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Start Date / Time" htmlFor="shiftStart">
+              <input
+                id="shiftStart"
+                type="datetime-local"
+                value={selection.startDateTime}
+                onChange={(event) =>
+                  updateSelection("startDateTime", event.target.value)
+                }
+                className={fieldClass}
+              />
+            </Field>
+
+            <Field label="End Date / Time" htmlFor="shiftEnd">
+              <input
+                id="shiftEnd"
+                type="datetime-local"
+                value={selection.endDateTime}
+                onChange={(event) =>
+                  updateSelection("endDateTime", event.target.value)
+                }
+                className={fieldClass}
+              />
+            </Field>
+
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="min-h-12 w-full rounded-md bg-[#0056b3] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
+              >
+                Generate Summary
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {summary ? (
+          <div className="grid gap-5" aria-live="polite">
+            <section className="rounded-md border border-[#d7dce5] bg-white p-4">
+              <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#003f87]">
+                Shift Pass-Down Summary
+              </h3>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <SummaryMetric
+                  label="Total stops"
+                  value={summary.totalStops.toString()}
+                />
+                <SummaryMetric
+                  label="Estimated downtime"
+                  value={`${summary.estimatedDowntimeMinutes} minutes`}
+                />
+                <SummaryMetric
+                  label="Most common stop reason"
+                  value={summary.mostCommonStopReason}
+                />
+                <SummaryMetric
+                  label="Longest downtime event"
+                  value={summary.longestDowntimeEvent}
+                />
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                <SummaryDetail
+                  label="Repeated pattern"
+                  value={summary.repeatedPattern}
+                />
+                <SummaryDetail
+                  label="Operator awareness note"
+                  value={summary.operatorAwarenessNote}
+                />
+                <SummaryDetail
+                  label="Suggested follow-up"
+                  value={summary.suggestedFollowUp}
+                />
+              </div>
+            </section>
+
+            <section className="overflow-hidden rounded-md border border-[#d7dce5] bg-white">
+              <div className="border-b border-[#d7dce5] bg-[#f8fafc] px-4 py-3">
+                <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#374151]">
+                  Sample downtime logs
+                </h3>
+              </div>
+              {summary.logs.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                    <thead className="bg-[#f8fafc] text-xs uppercase tracking-[0.14em] text-[#4b5563]">
+                      <tr>
+                        <th className="border-b border-[#d7dce5] px-4 py-3">
+                          Time
+                        </th>
+                        <th className="border-b border-[#d7dce5] px-4 py-3">
+                          Machine
+                        </th>
+                        <th className="border-b border-[#d7dce5] px-4 py-3">
+                          Stop reason
+                        </th>
+                        <th className="border-b border-[#d7dce5] px-4 py-3">
+                          Duration
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summary.logs.map((log) => (
+                        <tr key={log.id} className="border-b border-[#e2e7ef]">
+                          <td className="px-4 py-3 font-semibold text-[#15181d]">
+                            {formatLogTime(log.timestamp)}
+                          </td>
+                          <td className="px-4 py-3 text-[#374151]">
+                            {log.machine}
+                          </td>
+                          <td className="px-4 py-3 text-[#374151]">
+                            {log.stopReason}
+                          </td>
+                          <td className="px-4 py-3 text-[#374151]">
+                            {log.durationMinutes} min
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="px-4 py-5 text-sm leading-6 text-[#4b5563]">
+                  No sample downtime logs match this selection. Choose another
+                  machine or time range to review the prototype data.
+                </p>
+              )}
+            </section>
+          </div>
+        ) : (
+          <ReadyState
+            title="Ready to generate a sample shift summary."
+            body="Select a department, line, machine, and time range, then generate a local sample pass-down summary."
+            tone="ready"
           />
-          <SummaryDetail
-            label="Operator awareness note"
-            value={sampleShiftSummary.operatorAwarenessNote}
-          />
-          <SummaryDetail
-            label="Suggested follow-up"
-            value={sampleShiftSummary.suggestedFollowUp}
-          />
-        </div>
+        )}
 
         <p className="border-t border-[#e2e7ef] pt-5 text-sm leading-6 text-[#4b5563]">
           Prototype concept using sample downtime data. A real version would
@@ -658,6 +803,13 @@ function ShiftSummaryView({
       </div>
     </section>
   );
+}
+
+function formatLogTime(timestamp: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
 }
 
 function SummaryMetric({ label, value }: { label: string; value: string }) {
