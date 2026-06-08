@@ -24,6 +24,17 @@ type AnalysisResult = {
   escalationProtocol: string;
 };
 
+const sampleShiftSummary = {
+  totalStops: "12",
+  mostCommonStopReason: "Infeed backup",
+  longestDowntimeEvent: "18 minutes",
+  repeatedPattern: "Stops increased after short restarts",
+  operatorAwarenessNote:
+    "Watch for product buildup near the infeed before restarting the machine.",
+  suggestedFollowUp:
+    "Ask maintenance to review infeed timing and check for worn guide components.",
+};
+
 const initialForm: DiagnosticForm = {
   department: "Fabrication",
   line: "Line A",
@@ -58,11 +69,21 @@ const severityContent: Record<
 const fieldClass =
   "min-h-12 w-full rounded-md border border-[#b8bfcc] bg-white px-4 py-3 text-base text-[#15181d] outline-none transition placeholder:text-[#6b7280] focus:border-[#0056b3] focus:ring-2 focus:ring-[#0056b3]/20";
 
-const navItems = ["Dashboard", "History", "Maintenance", "Support"];
+const navItems = [
+  "Dashboard",
+  "Shift Summary",
+  "History",
+  "Maintenance",
+  "Support",
+] as const;
+
+type ActiveSection = "Dashboard" | "Shift Summary";
 
 export default function Home() {
   const [form, setForm] = useState<DiagnosticForm>(initialForm);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [activeSection, setActiveSection] =
+    useState<ActiveSection>("Dashboard");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
   const [analysisError, setAnalysisError] = useState("");
@@ -145,6 +166,19 @@ export default function Home() {
     setAnalysisError("");
   }
 
+  function useShiftSummaryAsContext() {
+    const summaryContext = [
+      "Previous shift sample summary: Flow Wrapper had 12 total stops.",
+      "Most common stop reason was infeed backup.",
+      "Longest downtime event was 18 minutes.",
+      "Repeated pattern: stops increased after short restarts.",
+      "Operator awareness: watch for product buildup near the infeed before restarting.",
+    ].join(" ");
+
+    updateField("operatingContext", summaryContext);
+    setActiveSection("Dashboard");
+  }
+
   const priority = analysis?.priority ?? form.severity;
   const result = severityContent[priority];
 
@@ -173,8 +207,13 @@ export default function Home() {
               <button
                 type="button"
                 key={item}
+                onClick={() => {
+                  if (item === "Dashboard" || item === "Shift Summary") {
+                    setActiveSection(item);
+                  }
+                }}
                 className={`flex min-h-11 items-center gap-3 rounded-md px-4 text-left text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#0056b3] ${
-                  item === "Dashboard"
+                  activeSection === item
                     ? "bg-white text-[#003f87] shadow-sm ring-1 ring-[#d7dce5]"
                     : "text-[#374151] hover:bg-white/70"
                 }`}
@@ -224,149 +263,152 @@ export default function Home() {
           </header>
 
           <div className="min-w-0 flex-1 px-4 py-5 sm:px-5 lg:px-8 lg:py-8">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
-              <form
-                onSubmit={handleSubmit}
-                className="min-w-0 overflow-hidden rounded-lg border border-[#d7dce5] bg-white shadow-sm"
-              >
-                <PanelHeader
-                  eyebrow="Operator input"
-                  title="Describe the issue"
-                  helper="Use only non-confidential information."
-                />
+            {activeSection === "Shift Summary" ? (
+              <ShiftSummaryView onUseAsContext={useShiftSummaryAsContext} />
+            ) : (
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
+                <form
+                  onSubmit={handleSubmit}
+                  className="min-w-0 overflow-hidden rounded-lg border border-[#d7dce5] bg-white shadow-sm"
+                >
+                  <PanelHeader
+                    eyebrow="Operator input"
+                    title="Describe the issue"
+                    helper="Use only non-confidential information."
+                  />
 
-                <div className="grid gap-5 p-5 lg:p-6">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Field label="Department / Area" htmlFor="department">
-                      <select
-                        id="department"
-                        value={form.department}
+                  <div className="grid gap-5 p-5 lg:p-6">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Department / Area" htmlFor="department">
+                        <select
+                          id="department"
+                          value={form.department}
+                          onChange={(event) =>
+                            updateField("department", event.target.value)
+                          }
+                          className={fieldClass}
+                        >
+                          <option>Fabrication</option>
+                          <option>Assembly</option>
+                          <option>Packaging</option>
+                          <option>Warehouse</option>
+                        </select>
+                      </Field>
+
+                      <Field label="Line / Cell" htmlFor="line">
+                        <select
+                          id="line"
+                          value={form.line}
+                          onChange={(event) =>
+                            updateField("line", event.target.value)
+                          }
+                          className={fieldClass}
+                        >
+                          <option>Line A</option>
+                          <option>Line B</option>
+                          <option>Cell 3</option>
+                          <option>Training Station</option>
+                        </select>
+                      </Field>
+
+                      <Field label="Machine Type" htmlFor="machineType">
+                        <select
+                          id="machineType"
+                          value={form.machineType}
+                          onChange={(event) =>
+                            updateField("machineType", event.target.value)
+                          }
+                          className={fieldClass}
+                        >
+                          <option>Hydraulic Press</option>
+                          <option>Conveyor System</option>
+                          <option>Robotic Arm</option>
+                          <option>Packaging Machine</option>
+                        </select>
+                      </Field>
+
+                      <Field label="Severity" htmlFor="severity">
+                        <select
+                          id="severity"
+                          value={form.severity}
+                          onChange={(event) =>
+                            updateField("severity", event.target.value as Severity)
+                          }
+                          className={fieldClass}
+                        >
+                          <option value="Low">Low - Observation</option>
+                          <option value="Medium">Medium - Warning</option>
+                          <option value="High">High - Stop and escalate</option>
+                        </select>
+                      </Field>
+                    </div>
+
+                    <Field label="Alarm / Error Text" htmlFor="alarmText">
+                      <input
+                        id="alarmText"
+                        value={form.alarmText}
                         onChange={(event) =>
-                          updateField("department", event.target.value)
+                          updateField("alarmText", event.target.value)
                         }
                         className={fieldClass}
-                      >
-                        <option>Fabrication</option>
-                        <option>Assembly</option>
-                        <option>Packaging</option>
-                        <option>Warehouse</option>
-                      </select>
+                        maxLength={160}
+                        placeholder="Example: motor overload, sensor fault, pressure warning"
+                      />
                     </Field>
 
-                    <Field label="Line / Cell" htmlFor="line">
-                      <select
-                        id="line"
-                        value={form.line}
+                    <Field label="Issue Description" htmlFor="problemDescription">
+                      <textarea
+                        id="problemDescription"
+                        value={form.problemDescription}
                         onChange={(event) =>
-                          updateField("line", event.target.value)
+                          updateField("problemDescription", event.target.value)
                         }
-                        className={fieldClass}
-                      >
-                        <option>Line A</option>
-                        <option>Line B</option>
-                        <option>Cell 3</option>
-                        <option>Training Station</option>
-                      </select>
+                        className={`${fieldClass} min-h-36 resize-y`}
+                        maxLength={600}
+                        placeholder="Describe observable symptoms: noise, alarms, movement, repeated stops, leaks, jams, quality defects..."
+                        aria-describedby="problem-validation"
+                      />
+                      {validationMessage ? (
+                        <p
+                          id="problem-validation"
+                          className="text-sm font-semibold text-[#ba1a1a]"
+                        >
+                          {validationMessage}
+                        </p>
+                      ) : null}
                     </Field>
 
-                    <Field label="Machine Type" htmlFor="machineType">
-                      <select
-                        id="machineType"
-                        value={form.machineType}
+                    <Field label="Symptoms / Context" htmlFor="operatingContext">
+                      <textarea
+                        id="operatingContext"
+                        value={form.operatingContext}
                         onChange={(event) =>
-                          updateField("machineType", event.target.value)
+                          updateField("operatingContext", event.target.value)
                         }
-                        className={fieldClass}
-                      >
-                        <option>Hydraulic Press</option>
-                        <option>Conveyor System</option>
-                        <option>Robotic Arm</option>
-                        <option>Packaging Machine</option>
-                      </select>
+                        className={`${fieldClass} min-h-28 resize-y`}
+                        maxLength={600}
+                        placeholder="Add context: when it happens, recent resets, product flow, visible conditions, or what has already been checked safely."
+                      />
                     </Field>
 
-                    <Field label="Severity" htmlFor="severity">
-                      <select
-                        id="severity"
-                        value={form.severity}
-                        onChange={(event) =>
-                          updateField("severity", event.target.value as Severity)
-                        }
-                        className={fieldClass}
+                    <div className="flex flex-col gap-3 border-t border-[#e2e7ef] pt-5 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={handleReset}
+                        className="min-h-12 rounded-md border border-[#c3cad6] bg-white px-5 text-sm font-bold text-[#374151] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
                       >
-                        <option value="Low">Low - Observation</option>
-                        <option value="Medium">Medium - Warning</option>
-                        <option value="High">High - Stop and escalate</option>
-                      </select>
-                    </Field>
+                        Clear
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isAnalyzing}
+                        className="min-h-12 rounded-md bg-[#0056b3] px-7 text-sm font-bold text-white shadow-sm transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3] disabled:cursor-not-allowed disabled:bg-[#697386]"
+                      >
+                        {isAnalyzing ? "Analyzing issue..." : "Analyze Issue"}
+                      </button>
+                    </div>
                   </div>
-
-                  <Field label="Alarm / Error Text" htmlFor="alarmText">
-                    <input
-                      id="alarmText"
-                      value={form.alarmText}
-                      onChange={(event) =>
-                        updateField("alarmText", event.target.value)
-                      }
-                      className={fieldClass}
-                      maxLength={160}
-                      placeholder="Example: motor overload, sensor fault, pressure warning"
-                    />
-                  </Field>
-
-                  <Field label="Issue Description" htmlFor="problemDescription">
-                    <textarea
-                      id="problemDescription"
-                      value={form.problemDescription}
-                      onChange={(event) =>
-                        updateField("problemDescription", event.target.value)
-                      }
-                      className={`${fieldClass} min-h-36 resize-y`}
-                      maxLength={600}
-                      placeholder="Describe observable symptoms: noise, alarms, movement, repeated stops, leaks, jams, quality defects..."
-                      aria-describedby="problem-validation"
-                    />
-                    {validationMessage ? (
-                      <p
-                        id="problem-validation"
-                        className="text-sm font-semibold text-[#ba1a1a]"
-                      >
-                        {validationMessage}
-                      </p>
-                    ) : null}
-                  </Field>
-
-                  <Field label="Symptoms / Context" htmlFor="operatingContext">
-                    <textarea
-                      id="operatingContext"
-                      value={form.operatingContext}
-                      onChange={(event) =>
-                        updateField("operatingContext", event.target.value)
-                      }
-                      className={`${fieldClass} min-h-28 resize-y`}
-                      maxLength={600}
-                      placeholder="Add context: when it happens, recent resets, product flow, visible conditions, or what has already been checked safely."
-                    />
-                  </Field>
-
-                  <div className="flex flex-col gap-3 border-t border-[#e2e7ef] pt-5 sm:flex-row sm:justify-end">
-                    <button
-                      type="button"
-                      onClick={handleReset}
-                      className="min-h-12 rounded-md border border-[#c3cad6] bg-white px-5 text-sm font-bold text-[#374151] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
-                    >
-                      Clear
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isAnalyzing}
-                      className="min-h-12 rounded-md bg-[#0056b3] px-7 text-sm font-bold text-white shadow-sm transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3] disabled:cursor-not-allowed disabled:bg-[#697386]"
-                    >
-                      {isAnalyzing ? "Analyzing issue..." : "Analyze Issue"}
-                    </button>
-                  </div>
-                </div>
-              </form>
+                </form>
 
               <aside className="min-w-0 overflow-hidden rounded-lg border border-[#d7dce5] bg-white shadow-sm">
                 <PanelHeader
@@ -463,7 +505,8 @@ export default function Home() {
                   )}
                 </div>
               </aside>
-            </div>
+              </div>
+            )}
           </div>
         </section>
       </div>
@@ -544,6 +587,100 @@ function ReadyState({
       </p>
       <p className="mt-3 text-sm leading-6 text-[#4b5563]">{body}</p>
     </section>
+  );
+}
+
+function ShiftSummaryView({
+  onUseAsContext,
+}: {
+  onUseAsContext: () => void;
+}) {
+  return (
+    <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-lg border border-[#d7dce5] bg-white shadow-sm">
+      <div className="flex flex-col gap-4 border-b border-[#d7dce5] bg-[#f8fafc] px-5 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6b7280]">
+            Future integration concept
+          </p>
+          <h2 className="mt-1 text-2xl font-bold leading-8 text-[#15181d]">
+            Shift Summary
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-[#4b5563]">
+            Review recent downtime patterns, repeated faults, and machine stops
+            from the previous shift.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onUseAsContext}
+          className="min-h-11 rounded-md bg-[#0056b3] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#003f87] focus:outline-none focus:ring-2 focus:ring-[#0056b3]"
+        >
+          Use this as context
+        </button>
+      </div>
+
+      <div className="grid gap-5 p-5 lg:p-6">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryMetric label="Machine" value="Flow Wrapper" />
+          <SummaryMetric
+            label="Total stops"
+            value={sampleShiftSummary.totalStops}
+          />
+          <SummaryMetric
+            label="Most common stop reason"
+            value={sampleShiftSummary.mostCommonStopReason}
+          />
+          <SummaryMetric
+            label="Longest downtime event"
+            value={sampleShiftSummary.longestDowntimeEvent}
+          />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <SummaryDetail
+            label="Repeated pattern"
+            value={sampleShiftSummary.repeatedPattern}
+          />
+          <SummaryDetail
+            label="Operator awareness note"
+            value={sampleShiftSummary.operatorAwarenessNote}
+          />
+          <SummaryDetail
+            label="Suggested follow-up"
+            value={sampleShiftSummary.suggestedFollowUp}
+          />
+        </div>
+
+        <p className="border-t border-[#e2e7ef] pt-5 text-sm leading-6 text-[#4b5563]">
+          Prototype concept using sample downtime data. A real version would
+          require approved access to downtime/fault systems.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-[#d7dce5] bg-[#f8fafc] p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6b7280]">
+        {label}
+      </p>
+      <p className="mt-2 text-base font-semibold leading-6 text-[#15181d]">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function SummaryDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-[#d7dce5] bg-[#f8fafc] p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#4b5563]">
+        {label}
+      </p>
+      <p className="mt-2 text-sm leading-6 text-[#15181d]">{value}</p>
+    </div>
   );
 }
 
