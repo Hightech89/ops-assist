@@ -371,7 +371,7 @@ export default function Home() {
                       ) : null}
                     </Field>
 
-                    <Field label="Symptoms / Context" htmlFor="operatingContext">
+                    <Field label="Additional Context" htmlFor="operatingContext">
                       <textarea
                         id="operatingContext"
                         value={form.operatingContext}
@@ -380,7 +380,7 @@ export default function Home() {
                         }
                         className={`${fieldClass} min-h-28 resize-y`}
                         maxLength={600}
-                        placeholder="Add context: when it happens, recent resets, product flow, visible conditions, or what has already been checked safely."
+                        placeholder="Optional: when it happens, what changed recently, recent resets, changeovers, jams, product flow issues, or checks already completed."
                       />
                     </Field>
 
